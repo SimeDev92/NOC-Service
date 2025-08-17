@@ -1,7 +1,8 @@
-import { LogEntity, LogEntityOptions, LogSeverityLevel } from '../../entities/log.entity';
+import { LogEntity, LogSeverityLevel } from '../../entities/log.entity';
 import { LogRepository } from '../../repository/log.repository';
 const origin = 'check-service.ts';
-interface CheckServiceUseCase {
+
+interface CheckServiceMultipleUseCase {
 
     execute(url: string): Promise<boolean>
 
@@ -10,13 +11,23 @@ interface CheckServiceUseCase {
 type SuccesCallback = () => void | undefined;
 type ErrorCallback = ((error: string) => void) | undefined;
 
-export class CheckService implements CheckServiceUseCase {
+export class CheckServiceMultiple implements CheckServiceMultipleUseCase {
 
     constructor(
-        private readonly logRepository: LogRepository,
+        private readonly logRepository: LogRepository[],
         private readonly successCallback: SuccesCallback,
         private readonly errorCallback: ErrorCallback,
     ) { }
+
+    private callLogs(log: LogEntity) {
+        this.logRepository.forEach(logRepository => {
+            try {
+                logRepository.saveLog(log); // Si esto es async, se ejecutará pero no esperarás el resultado
+            } catch (error) {
+                console.error('Error saving log:', error);
+            }
+        });
+    }
 
     public async execute(url: string): Promise<boolean> {
 
@@ -26,15 +37,15 @@ export class CheckService implements CheckServiceUseCase {
                 throw new Error(`Error on check service ${url}`);
             }
 
-
             const log = new LogEntity({
                 message: `Service ${url} working`,
                 level: LogSeverityLevel.low,
                 origin
 
-            })
+            });
 
-            this.logRepository.saveLog(log);
+            // this.logRepository.saveLog(log);
+            this.callLogs(log);
 
             this.successCallback && this.successCallback();
             return true;
@@ -46,14 +57,12 @@ export class CheckService implements CheckServiceUseCase {
                 message: `${errorMessage}`,
                 level: LogSeverityLevel.high,
                 origin,
-            
+
             });
 
-            this.logRepository.saveLog(log);
+            this.callLogs(log);
             this.errorCallback && this.errorCallback(`${errorMessage}`);
             return false;
-
         }
-
     }
 }
